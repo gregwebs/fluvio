@@ -25,39 +25,35 @@ pub fn main_k8_loop(opt: ScOpt) {
     use controllers::run_k8_operators;
 
     // parse configuration (program exits on error)
-    let is_local = opt.is_local();
     println!("CLI Option: {:#?}", opt);
-    let ((sc_config, auth_policy), k8_config, tls_option) = opt.parse_cli_or_exit();
+    let ((sc_config, auth_policy), k8_config_opt, tls_option) = opt.parse_cli_or_exit();
 
     println!("Starting SC, platform: {}", crate::VERSION);
 
     inspect_system();
 
     run_block_on(async move {
-        // init k8 service
-        let k8_client = new_shared(k8_config).expect("problem creating k8 client");
-        let namespace = sc_config.namespace.clone();
-
-        let ctx = start_main_loop((sc_config.clone(), auth_policy), k8_client.clone()).await;
-
-        if !is_local {
+        if let Some(k8_config) = k8_config_opt {
+            // init k8 service
+            let k8_client = new_shared(k8_config).expect("problem creating k8 client");
+            let ctx = start_main_loop((sc_config.clone(), auth_policy), k8_client.clone()).await;
             run_k8_operators(
-                namespace.clone(),
+                sc_config.namespace.clone().unwrap_or("default".to_owned()),
                 k8_client,
                 ctx,
                 tls_option.clone().map(|(_, config)| config),
             )
             .await;
+            println!("Streaming Controller started successfully");
         }
 
         if let Some((proxy_port, tls_config)) = tls_option {
             let tls_acceptor = tls_config
                 .try_build_tls_acceptor()
                 .expect("can't build tls acceptor");
-            proxy::start_proxy(sc_config, (tls_acceptor, proxy_port)).await;
+            println!("Starting proxy on port {proxy_port}");
+            proxy::start_proxy(sc_config, (tls_acceptor, proxy_port.clone())).await;
         }
-
-        println!("Streaming Controller started successfully");
 
         // do infinite loop
         loop {

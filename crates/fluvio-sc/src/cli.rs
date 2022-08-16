@@ -71,28 +71,24 @@ pub struct ScOpt {
 }
 
 impl ScOpt {
-    /// override local flag
-    pub fn set_local(&mut self) {
-        self.local = true;
-    }
-
-    pub fn is_local(&self) -> bool {
-        self.local
-    }
-
     #[allow(clippy::type_complexity)]
     fn get_sc_and_k8_config(
         mut self,
-    ) -> Result<(Config, K8Config, Option<(String, TlsConfig)>), ScError> {
-        let k8_config = K8Config::load().expect("no k8 config founded");
-        info!(?k8_config, "k8 config");
+    ) -> Result<(Config, Option<K8Config>, Option<(String, TlsConfig)>), ScError> {
+        let k8_config = if self.local {
+            None
+        } else {
+            let k8s_config = K8Config::load().expect("no k8 config found");
+            // if name space is specified, use one from k8 config
+            if self.namespace.is_none() {
+                let k8_namespace = k8s_config.namespace().to_owned();
+                info!("using {} as namespace from kubernetes config", k8_namespace);
+                self.namespace = Some(k8_namespace);
+            }
 
-        // if name space is specified, use one from k8 config
-        if self.namespace.is_none() {
-            let k8_namespace = k8_config.namespace().to_owned();
-            info!("using {} as namespace from kubernetes config", k8_namespace);
-            self.namespace = Some(k8_namespace);
-        }
+            Some(k8s_config)
+        };
+        info!(?k8_config, "k8 config");
 
         let (sc_config, tls_option) = self.as_sc_config()?;
 
@@ -113,7 +109,7 @@ impl ScOpt {
             config.private_endpoint = private_addr;
         }
 
-        config.namespace = self.namespace.unwrap();
+        config.namespace = self.namespace;
         config.x509_auth_scopes = self.x509_auth_scopes;
         config.white_list = self.white_list.into_iter().collect();
 
@@ -145,7 +141,7 @@ impl ScOpt {
         }
     }
 
-    pub fn parse_cli_or_exit(self) -> (Config, K8Config, Option<(String, TlsConfig)>) {
+    pub fn parse_cli_or_exit(self) -> (Config, Option<K8Config>, Option<(String, TlsConfig)>) {
         match self.get_sc_and_k8_config() {
             Err(err) => {
                 print_cli_err!(err);

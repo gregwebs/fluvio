@@ -38,7 +38,7 @@ where
 
     let (sc_config, auth_policy) = sc_config_policy;
 
-    let namespace = sc_config.namespace.clone();
+    let namespace = sc_config.namespace.clone().unwrap_or("default".to_owned());
     let ctx = Context::shared_metadata(sc_config);
     let config = ctx.config();
 

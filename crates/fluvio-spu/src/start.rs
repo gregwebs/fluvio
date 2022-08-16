@@ -44,11 +44,14 @@ pub fn main_loop(opt: SpuOpt) {
         let _public_shutdown = internal_server.unwrap().run();
         let _private_shutdown = public_server.unwrap().run();
 
+        let ctx = FileReplicaContext::new_shared_context(spu_config.clone());
+        let pub_addr = ctx.config().public_socket_addr();
+
         if let Some(tls_config) = tls_acceptor_option {
             proxy::start_proxy(spu_config, tls_config).await;
         }
 
-        println!("SPU Version: {} started successfully", VERSION);
+        println!("SPU Version: {VERSION} started successfully {pub_addr}");
 
         // infinite loop
         loop {

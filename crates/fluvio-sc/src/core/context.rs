@@ -104,7 +104,7 @@ impl Context {
         &self.config
     }
 
-    pub fn namespace(&self) -> &str {
-        &self.config.namespace
+    pub fn namespace(&self) -> String {
+        self.config.namespace.clone().unwrap_or("default".to_owned())
     }
 }
